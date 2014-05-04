@@ -1,0 +1,8 @@
+<transformation>
+    <update>
+        ALTER TABLE User ADD zip char(32);
+    </update>
+    <rollback>
+        ALTER TABLE User DROP COLUMN zip;
+    </rollback>
+</transformation>
