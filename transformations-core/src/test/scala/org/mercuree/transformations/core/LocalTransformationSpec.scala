@@ -61,7 +61,7 @@ class LocalTransformationSpec extends FlatSpec {
   it should "not fail if the rollback script is missing" in {
     val transformation = LocalTransformation.parseXML(NoRollbackScriptXml, "id")
     transformation match {
-      case LocalTransformation(_, _, "", _, _, _) => assert(true)
+      case LocalTransformation(_, _, "", _, _) => assert(true)
       case _ => assert(false, "Rollback script should not be mandatory")
     }
   }
@@ -87,8 +87,7 @@ class LocalTransformationSpec extends FlatSpec {
         assert("0E5BEB7344F44C053094BEAD4411B621" === t.updateScriptHash.toUpperCase)
         assert("DROP TABLE User;" === t.rollbackScript)
         assert("BCB8140B058A8CA2F5DCA6BF6B26B4B9" === t.rollbackScriptHash.toUpperCase)
-        assert(t.runOnChange, "Should defaults to 'true'")
-        assert(!t.runAlways, "Should defaults to 'false'")
+        assert(t.applyMode == ApplyMode.Modified, "Should defaults to 'Modified'")
         assert(t.runInTransaction, "Should defaults to 'true")
       case _ => assert(false, "Should be instanceof LocalTransformation")
     }

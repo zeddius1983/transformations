@@ -65,11 +65,28 @@ case class SkippedTransformation(id: String) extends Transformation
 case class DisabledTransformation(id: String) extends Transformation
 
 /**
+ * Determines when to apply transformations.
+ */
+object ApplyMode extends Enumeration {
+  /**
+   * Run if not yet applied.
+   */
+  val Once = Value
+  /**
+   * Apply whenever the update script is modified.
+   */
+  val Modified = Value
+  /**
+   * Apply every time.
+   */
+  val Always = Value
+}
+
+/**
  * A user requested transformation to apply.
  */
 case class LocalTransformation(id: String, updateScript: String, rollbackScript: String,
-                               runOnChange: Boolean = true, runAlways: Boolean = false,
-                               runInTransaction: Boolean = true) extends ScriptedTransformation {
+                               applyMode: ApplyMode.Value, runInTransaction: Boolean) extends ScriptedTransformation {
   val updateScriptHash = md5(updateScript)
   val rollbackScriptHash = md5(rollbackScript)
 
@@ -80,9 +97,8 @@ object LocalTransformation {
 
   //  private val IdAttr = "@id" TODO: need it?
   private val EnabledAttr = "@enabled"
-  private val RunOnChangeAttr = "@runOnChange"
-  private val RunInTransactionAttr = "@runInTransaction" // TODO: what to do with rollback? Do we need it at all?
-  private val RunAlwaysAttr = "@runAlways"
+  private val TransactionAttr = "@transaction" // TODO: what to do with rollback? Do we need it at all?
+  private val ApplyModeAttr = "@apply"
 
   private val RootTag = "transformation"
   private val UpdateTag = "update"
@@ -151,12 +167,12 @@ object LocalTransformation {
       throw TransformationException(s"Transformation root element must be <$RootTag> tag")
     }
 
-    def toBoolean(seq: NodeSeq, default: Boolean = true) = seq.map(_.text.trim.toBoolean).headOption.getOrElse(default)
+    def parseBoolean(seq: NodeSeq) = seq.map(_.text.trim.toBoolean).headOption
+    def parseApplyMode(seq: NodeSeq) = seq.map(n => ApplyMode.withName(n.text.trim.capitalize)).headOption
 
-    lazy val enabled = toBoolean(xml \ EnabledAttr)
-    lazy val runOnChange = toBoolean(xml \ RunOnChangeAttr)
-    lazy val runInTransaction = toBoolean(xml \ RunInTransactionAttr)
-    lazy val runAlways = toBoolean(xml \ RunAlwaysAttr, false)
+    lazy val enabled = parseBoolean(xml \ EnabledAttr).getOrElse(true)
+    lazy val runInTransaction = parseBoolean(xml \ TransactionAttr).getOrElse(true)
+    lazy val applyMode = parseApplyMode(xml \ ApplyModeAttr).getOrElse(ApplyMode.Modified)
 
     // Update script is mandatory
     lazy val sqlUpdate = (xml \\ UpdateTag).text.trim match {
@@ -172,7 +188,7 @@ object LocalTransformation {
     else if (!enabled)
       DisabledTransformation(id)
     else
-      LocalTransformation(id, sqlUpdate, sqlRollback, runOnChange, runAlways, runInTransaction)
+      LocalTransformation(id, sqlUpdate, sqlRollback, applyMode, runInTransaction)
   }
 }
 
@@ -280,16 +296,12 @@ trait Transformations {this: LocalTransformations with StoredTransformations =>
           update(local)
         }
 
-        if (local.runAlways) {
+        if (local.applyMode == ApplyMode.Always) {
           logger.info(s"> [${local.id}] is set to run always")
           rollbackAndUpdate
-        } else if (local.updateScriptHash != stored.updateScriptHash) {
+        } else if (local.applyMode == ApplyMode.Modified && local.updateScriptHash != stored.updateScriptHash) {
           logger.info(s"> [${local.id}] update script has been modified")
-          if (local.runOnChange) {
-            rollbackAndUpdate
-          } else {
-            logger.warn(s"> [${local.id}] is set not to run on change!")
-          }
+          rollbackAndUpdate
         } else if (local.rollbackScriptHash != stored.rollbackScriptHash) {
           logger.info(s"> [${local.id}] rollback script has been modified")
           update(local)
@@ -303,7 +315,7 @@ trait Transformations {this: LocalTransformations with StoredTransformations =>
 
   protected def tryApply(local: LocalTransformation): Unit = {
     try {
-      logger.info(s"Applying [${local.id}]")
+      logger.info(s"Applying [${local.id}]") // TODO: log attributes?
       val elapsed = profile(apply(local))
       // TODO: instead of miliseconds consider human readable time like
       // TODO: 245ms, 2342ms, 11s, 1m 12s, 13m, 1h 5m

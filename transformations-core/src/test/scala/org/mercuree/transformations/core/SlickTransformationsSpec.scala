@@ -57,7 +57,7 @@ class SlickTransformationsSpec extends FlatSpec {
   private def countPersons(): Int = Sql.queryNA[Int](CountPersonsSql).first
 
   "Disabled transformation" should "be rolled back if had been applied previously" in {
-    val local1 = LocalTransformation("test", InsertPersonSql, DeletePersonSql)
+    val local1 = LocalTransformation("test", InsertPersonSql, DeletePersonSql, ApplyMode.Once, true)
     val local2 = DisabledTransformation("test")
     val pack1 = new TestTransformations(List(local1))
     val pack2 = new TestTransformations(List(local2))
@@ -73,7 +73,7 @@ class SlickTransformationsSpec extends FlatSpec {
   }
 
   "Transformations running in transaction" should "be applied properly" in {
-    val local = LocalTransformation("test", InsertPersonSql + FailingSql, "")
+    val local = LocalTransformation("test", InsertPersonSql + FailingSql, "", ApplyMode.Once, true)
     val pack = new TestTransformations(List(local))
 
     db.withDynSession {
@@ -84,7 +84,7 @@ class SlickTransformationsSpec extends FlatSpec {
   }
 
   "Removed transformations" should "be rolled back if had been applied previously" in {
-    val local = LocalTransformation("test", InsertPersonSql, DeletePersonSql)
+    val local = LocalTransformation("test", InsertPersonSql, DeletePersonSql, ApplyMode.Once, true)
     val pack1 = new TestTransformations(List(local))
     val pack2 = new TestTransformations(List())
 
