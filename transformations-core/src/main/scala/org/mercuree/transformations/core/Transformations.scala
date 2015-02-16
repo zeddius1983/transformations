@@ -19,10 +19,9 @@ package org.mercuree.transformations.core
 import scala.io.Source
 import java.net.URL
 import java.security.MessageDigest
-import org.slf4j.{Logger, LoggerFactory}
+import org.slf4j.LoggerFactory
 import scala.language.implicitConversions
 import java.io.File
-import scala.util.Try
 import scala.xml.NodeSeq
 
 /**
@@ -244,18 +243,20 @@ trait StoredTransformations {
   def applyScript(script: String)
 
   /**
-   * TODO: scaladoc
-   * @param f
-   * @tparam A
-   * @return
+   * Advice around transformation function.
+   *
+   * @param f function to run.
+   * @tparam A result type.
+   * @return function result.
    */
   def transform[A](f: => A): A
 
   /**
-   * TODO: scaladoc
-   * @param f
-   * @tparam A
-   * @return
+   * Runs the supplied function within a transaction.
+   *
+   * @param f function to run.
+   * @tparam A result type.
+   * @return function result.
    */
   def transactional[A](f: => A): A
 }
@@ -322,6 +323,13 @@ trait Transformations {this: LocalTransformations with StoredTransformations =>
       logger.info(s"[${local.id}] processed in $elapsed ms")
     } catch {
       case e: Exception => logger.error(s"Failed to apply [${local.id}] due to:\n ${e.getMessage}")
+    }
+  }
+
+  private def msToHumanReadable(ms: Long): String =  {
+    if (ms < 1000) {
+      s"${ms}ms"
+    } else if (ms < 60000) {
     }
   }
 
